@@ -6,23 +6,23 @@ use Digest::SHA;
 
 my %installed;
 
-my @needed = ("Term::ReadLine::Gnu", "SVG", "Moo", "MongoDB", "JSON", "Net::SSLeay" );
+my @needed = ( "Term::ReadKey", "XML::SAX", "JSON", "MongoDB", "JSON", "Net::SSLeay", "Term::ReadLine::Gnu" );
 
 print << 'END_BLOCK';
 class Polymake < Formula
   desc "Tool for computations in algorithmic discrete geometry"
   homepage "https://polymake.org/"
-  url "https://polymake.org/lib/exe/fetch.php/download/polymake-4.0r1.tar.bz2"
-  version "4.0r1"
-  sha256 "06654c5b213e74d7ff521a4f52e446f46a54e52e7da795396b79dd8beead3000"
+  url "https://polymake.org/lib/exe/fetch.php/download/polymake-4.3.tar.bz2"
+  sha256 "76aeaecc84bb9fad83041800181a20a2867340a23e9697b043d7cd81c79e6f95"
 
   depends_on "boost"
+  depends_on "flint"
   depends_on "gmp"
   depends_on "mpfr"
   depends_on "ninja"
+  depends_on "perl" if MacOS.version == :big_sur || MacOS.version == :catalina
   depends_on "ppl"
   depends_on "readline"
-  depends_on "singular"
 
 END_BLOCK
 
@@ -52,6 +52,14 @@ foreach my $n (@needed) {
         $sha->addfile($filename);
         my $digest = $sha->hexdigest;
         print '    sha256 "'.$digest.'"'."\n";
+        if ( $dep->name() eq "Term::ReadLine::Gnu" ) {
+          print '    if MacOS.version == :big_sur'."\n";
+          print '      patch do'."\n";
+          print '        url "https://gist.githubusercontent.com/apaffenholz/9db9fd984d2608f235a73b37a3a09301/raw/99fd09a404ca6d7ed9e24b55d495703dcf3356cd/polymake-homebrew-term-readline-gnu.patch"'."\n";
+          print '        sha256 "0c6b0e266b06aa817df84c7087c6becd97f1335de4957c968a857d868eb79e27"'."\n";
+          print '      end'."\n";
+          print '    end'."\n";
+        }
         print "  end\n\n"
       }
     }
@@ -66,6 +74,46 @@ print << 'END_BLOCK';
     ENV.prepend_create_path "PERL5LIB", libexec/"perl5/lib/perl5"
     ENV.prepend_path "PERL5LIB", libexec/"perl5/lib/perl5/darwin-thread-multi-2level"
 
+    resources.each do |r|
+      next if r.name == "Term::ReadLine::Gnu"
+
+      r.stage do
+        # Prevent the Makefile to try and build universal binaries
+        ENV.refurbish_args
+        if MacOS.version == :catalina || MacOS.version == :mojave
+          system_perl_subpath = "/System/Library/Perl/5.18/darwin-thread-multi-2level/CORE/"
+          perl_cpath = "#{MacOS.sdk_path}#{system_perl_subpath}"
+          ENV.prepend_create_path "CPATH", perl_cpath.to_str
+        end
+        case r.name
+        when "IO::Socket::IP"
+          system "perl", "Build.PL", "--install_base", libexec
+          system "./Build"
+          system "./Build", "test"
+          system "./Build", "install"
+        when "Net::SSLeay" 
+          system "yes 'n' | perl Makefile.PL INSTALL_BASE=#{libexec}/perl5"
+          system "make", "install"
+        when "XML::SAX" 
+          system "yes | perl Makefile.PL INSTALL_BASE=#{libexec}/perl5"
+          system "make", "install"
+        else
+          system "perl", "Makefile.PL", "INSTALL_BASE=#{libexec}/perl5"
+          system "make", "install"
+        end
+      end
+    end
+
+    system "./configure", "--prefix=#{prefix}",
+                          "--without-bliss",
+                          "--without-java",
+                          "--without-scip",
+                          "--without-soplex",
+                          "--without-singular"
+
+    system "ninja", "-C", "build/Opt", "install"
+    bin.env_script_all_files(libexec/"perl5/bin", PERL5LIB: ENV["PERL5LIB"])
+    
     resource("Term::ReadLine::Gnu").stage do
       # Prevent the Makefile to try and build universal binaries
       ENV.refurbish_args
@@ -74,30 +122,6 @@ print << 'END_BLOCK';
                      "--libdir=#{Formula["readline"].opt_lib}"
       system "make", "install"
     end
-
-    resources.each do |r|
-      next if r.name == "Term::ReadLine::Gnu"
-
-      r.stage do
-        # Prevent the Makefile to try and build universal binaries
-        ENV.refurbish_args
-        if MacOS.version == :catalina
-          system_perl_subpath = "/System/Library/Perl/5.18/darwin-thread-multi-2level/CORE/"
-          perl_cpath = "#{MacOS.sdk_path}#{system_perl_subpath}"
-          ENV.prepend_create_path "CPATH", perl_cpath.to_str
-        end
-        system "perl", "Makefile.PL", "INSTALL_BASE=#{libexec}/perl5"
-        system "make", "install"
-      end
-    end
-
-    system "./configure", "--prefix=#{prefix}",
-                          "--without-bliss",
-                          "--without-java",
-                          "--without-soplex"
-
-    system "ninja", "-C", "build/Opt", "install"
-    bin.env_script_all_files(libexec/"perl5/bin", :PERL5LIB => ENV["PERL5LIB"])
   end
 
   test do
@@ -107,4 +131,4 @@ print << 'END_BLOCK';
     assert_match /^polymake:  WARNING: Recompiling in .* please be patient\.\.\.$/, shell_output(command)
   end
 END_BLOCK
-print "end";
+print "end\n";
