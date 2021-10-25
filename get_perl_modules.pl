@@ -12,8 +12,8 @@ print << 'END_BLOCK';
 class Polymake < Formula
   desc "Tool for computations in algorithmic discrete geometry"
   homepage "https://polymake.org/"
-  url "https://polymake.org/lib/exe/fetch.php/download/polymake-4.3.tar.bz2"
-  sha256 "76aeaecc84bb9fad83041800181a20a2867340a23e9697b043d7cd81c79e6f95"
+  url "https://polymake.org/lib/exe/fetch.php/download/polymake-4.5.tar.bz2"
+  sha256 "9dbfba0e0e15f86d686e315a14f6e4eb0f3580a282806284f4eabad8cb8e2b33"
 
   depends_on "boost"
   depends_on "flint"
@@ -113,7 +113,7 @@ print << 'END_BLOCK';
 
     system "ninja", "-C", "build/Opt", "install"
     bin.env_script_all_files(libexec/"perl5/bin", PERL5LIB: ENV["PERL5LIB"])
-    
+
     resource("Term::ReadLine::Gnu").stage do
       # Prevent the Makefile to try and build universal binaries
       ENV.refurbish_args
@@ -124,11 +124,24 @@ print << 'END_BLOCK';
     end
   end
 
+  def caveats
+    <<~EOS
+      Note: This version comes without support for SVG export.
+
+      If you had any other version of polymake installed on your Mac
+      (both previous versions installed via Homebrew or any other installations)
+      you must start polymake once with
+      "polymake --reconfigure"
+      to remove the configuration of SVG support from your local
+      polymake setup. Afterwards you can use "polymake" as usual.
+    EOS
+  end
+
   test do
     assert_match "1 23 23 1", shell_output("#{bin}/polymake 'print cube(3)->H_STAR_VECTOR'")
     command = "LIBRARY_PATH=/usr/local/lib #{bin}/polymake 'my $a=new Array<SparseMatrix<Float>>' 2>&1"
     assert_match "", shell_output(command)
-    assert_match /^polymake:  WARNING: Recompiling in .* please be patient\.\.\.$/, shell_output(command)
+    assert_match(/^polymake:  WARNING: Recompiling in .* please be patient\.\.\.$/, shell_output(command))
   end
 END_BLOCK
 print "end\n";
