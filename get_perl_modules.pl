@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/local/bin/perl
 
 use CPAN::FindDependencies;
 use File::Basename;
@@ -12,15 +12,16 @@ print << 'END_BLOCK';
 class Polymake < Formula
   desc "Tool for computations in algorithmic discrete geometry"
   homepage "https://polymake.org/"
-  url "https://polymake.org/lib/exe/fetch.php/download/polymake-4.5.tar.bz2"
-  sha256 "9dbfba0e0e15f86d686e315a14f6e4eb0f3580a282806284f4eabad8cb8e2b33"
+  url "https://polymake.org/lib/exe/fetch.php/download/polymake-4.9.tar.bz2"
+  sha256 "bc7335bfca7a3e687b7961b052418ace0e4295f99a86c6cf4832bc2a51b0deea"
 
   depends_on "boost"
   depends_on "flint"
   depends_on "gmp"
   depends_on "mpfr"
   depends_on "ninja"
-  depends_on "perl" if MacOS.version == :big_sur || MacOS.version == :catalina
+  depends_on "openssl@1.1"
+  depends_on "perl" if MacOS.version == :big_sur || MacOS.version == :ventura || MacOS.version == :monterey
   depends_on "ppl"
   depends_on "readline"
 
@@ -52,14 +53,14 @@ foreach my $n (@needed) {
         $sha->addfile($filename);
         my $digest = $sha->hexdigest;
         print '    sha256 "'.$digest.'"'."\n";
-        if ( $dep->name() eq "Term::ReadLine::Gnu" ) {
-          print '    if MacOS.version == :big_sur'."\n";
-          print '      patch do'."\n";
-          print '        url "https://gist.githubusercontent.com/apaffenholz/9db9fd984d2608f235a73b37a3a09301/raw/99fd09a404ca6d7ed9e24b55d495703dcf3356cd/polymake-homebrew-term-readline-gnu.patch"'."\n";
-          print '        sha256 "0c6b0e266b06aa817df84c7087c6becd97f1335de4957c968a857d868eb79e27"'."\n";
-          print '      end'."\n";
-          print '    end'."\n";
-        }
+        #if ( $dep->name() eq "Term::ReadLine::Gnu" ) {
+        #  print '    if MacOS.version == :big_sur'."\n";
+        #  print '      patch do'."\n";
+        #  print '        url "https://gist.githubusercontent.com/apaffenholz/9db9fd984d2608f235a73b37a3a09301/raw/99fd09a404ca6d7ed9e24b55d495703dcf3356cd/polymake-homebrew-term-readline-gnu.patch"'."\n";
+        #  print '        sha256 "0c6b0e266b06aa817df84c7087c6becd97f1335de4957c968a857d868eb79e27"'."\n";
+        #  print '      end'."\n";
+        #  print '    end'."\n";
+        #}
         print "  end\n\n"
       }
     }
@@ -92,7 +93,8 @@ print << 'END_BLOCK';
           system "./Build", "test"
           system "./Build", "install"
         when "Net::SSLeay" 
-          system "yes 'n' | perl Makefile.PL INSTALL_BASE=#{libexec}/perl5"
+          ENV.prepend_create_path "OPENSSL_PREFIX", Formula["openssl@1.1"].opt_prefix
+          system "yes -N | perl Makefile.PL INSTALL_BASE=#{libexec}/perl5" 
           system "make", "install"
         when "XML::SAX" 
           system "yes | perl Makefile.PL INSTALL_BASE=#{libexec}/perl5"
@@ -109,7 +111,10 @@ print << 'END_BLOCK';
                           "--without-java",
                           "--without-scip",
                           "--without-soplex",
-                          "--without-singular"
+                          "--without-singular",
+                          "--with-brew=bottle",
+                          "CXXFLAGS=-I#{HOMEBREW_PREFIX}/include",
+                          "LDFLAGS=-L#{HOMEBREW_PREFIX}/lib"
 
     system "ninja", "-C", "build/Opt", "install"
     bin.env_script_all_files(libexec/"perl5/bin", PERL5LIB: ENV["PERL5LIB"])
